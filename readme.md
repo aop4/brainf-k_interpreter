@@ -8,9 +8,9 @@ make run
 
 Run sample programs:
 ```bash
-./run hello_world.bf # prints "Hello world!"
-./run addition.bf # does basic addition of two integers and prints the result
-./run cat.bf < file_name # outputs the contents of a file (alternatively, leave the file out and it will echo user input)
+./run samples/hello_world.bf # prints "Hello world!"
+./run samples/addition.bf # does basic addition of two integers and prints the result
+./run samples/cat.bf < file_name # outputs the contents of a file (alternatively, leave the file out and it will echo user input)
 ```
 
 The interpreter was tested with CUnit. To install in Ubuntu:
@@ -24,4 +24,4 @@ make tests
 ./interpreter_tests
 ```
 
-You will also find, in stack.c, a not-quite-textbook implementation of an integer stack.  
+You will also find, in `source/stack.c`, a not-quite-textbook implementation of an integer stack.  
