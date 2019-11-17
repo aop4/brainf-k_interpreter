@@ -13,12 +13,16 @@ typedef struct {
     int size;
 } Stack;
 
-void push(Stack *stack, int val);
+Stack *new_stack();
 
-int *pop(Stack *stack);
+void stack_push(Stack *stack, int val);
 
-int peek(Stack *stack);
+int stack_pop(Stack *stack);
+
+int stack_peek(Stack *stack);
 
 int stack_size(Stack *stack);
+
+void stack_free(Stack *stack);
 
 #endif

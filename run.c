@@ -15,7 +15,7 @@ char *read_file_as_str(const char *file_name) {
     rewind(file);
     char *instructions = malloc(file_size + 1);
     fread(instructions, 1, file_size, file);
-    instructions[file_size] = 0; // terminate string
+    instructions[file_size] = '\0'; // null-terminate string
     fclose(file);
     return instructions;
 }
@@ -27,9 +27,8 @@ int main(int argc, char *argv[]) {
     }
 
     const char *file_name = argv[1];
-    SystemMemory *mem;
     char *instructions = read_file_as_str(file_name);
-    mem = initialize_memory();
+    SystemMemory *mem = initialize_memory();
     execute_code(instructions, mem);
 
     free(instructions);

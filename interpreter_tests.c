@@ -121,10 +121,243 @@ static void test_output_current_cell_value(void) {
     free_mem(mem);
 }
 
+static void test_conditional_loop_entry_enter_loop() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 27; // non-zero memory value
+    char *instruction_snippet = "[>-[++-";
+    int left_bracket_index = 3; // instruction pointer starts at second bracket
+    Stack *left_bracket_stack = new_stack();
+    stack_push(left_bracket_stack, 0); // give stack one value
+    int next_instr_index = conditional_loop_entry(mem, instruction_snippet,
+                                        left_bracket_index, left_bracket_stack);
+    // validate returned instruction index is right after the left bracket
+    // (we enter the loop)
+    CU_ASSERT_EQUAL(4, next_instr_index);
+    // validate stack contents
+    CU_ASSERT_EQUAL(2, stack_size(left_bracket_stack));
+    CU_ASSERT_EQUAL(3, stack_peek(left_bracket_stack)); // index of left bracket
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
 
+static void test_conditional_loop_entry_skip_loop_no_matching_right_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 0; // zero memory value
+    char *instruction_snippet = "[>-[++-";
+    int left_bracket_index = 3; // instruction pointer starts at second bracket
+    Stack *left_bracket_stack = new_stack();
+    stack_push(left_bracket_stack, 0); // give stack one value
+    int next_instr_index = conditional_loop_entry(mem, instruction_snippet,
+                                        left_bracket_index, left_bracket_stack);
+    // validate returned instruction index is -1: no matching right bracket
+    CU_ASSERT_EQUAL(-1, next_instr_index);
+    // validate stack was not changed
+    CU_ASSERT_EQUAL(1, stack_size(left_bracket_stack));
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_conditional_loop_entry_skip_loop_has_matching_right_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 0; // zero memory value
+    char *instruction_snippet = "[>-[++]-";
+    int left_bracket_index = 3; // instruction pointer starts at second left bracket
+    Stack *left_bracket_stack = new_stack();
+    stack_push(left_bracket_stack, 0); // give stack one value
+    int next_instr_index = conditional_loop_entry(mem, instruction_snippet,
+                                        left_bracket_index, left_bracket_stack);
+    // validate returned instruction index follows right bracket
+    // (we skip over the loop)
+    CU_ASSERT_EQUAL(7, next_instr_index);
+    // validate stack was not changed
+    CU_ASSERT_EQUAL(1, stack_size(left_bracket_stack));
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_conditional_loop_entry_nested_loop_skip_no_matching_right_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 0; // zero memory value
+    char *instruction_snippet = "[>-[+]-"; // the second left bracket nullifies the right bracket
+    int left_bracket_index = 0; // instruction pointer at first left bracket
+    Stack *left_bracket_stack = new_stack();
+    int next_instr_index = conditional_loop_entry(mem, instruction_snippet,
+                                        left_bracket_index, left_bracket_stack);
+    // validate returned instruction index is -1: no matching right bracket
+    CU_ASSERT_EQUAL(-1, next_instr_index);
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_conditional_loop_entry_nested_loop_skip_has_matching_right_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 0; // zero memory value
+    char *instruction_snippet = "[>-[++]]-";
+    int left_bracket_index = 0; // instruction pointer starts at first left bracket
+    Stack *left_bracket_stack = new_stack();
+    int next_instr_index = conditional_loop_entry(mem, instruction_snippet,
+                                        left_bracket_index, left_bracket_stack);
+    // validate returned instruction index follows second right bracket
+    // (we skip over the loop and its internal nested loop)
+    CU_ASSERT_EQUAL(8, next_instr_index);
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_conditional_continue_restart_loop_no_matching_left_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 1; // non-zero memory value
+    Stack *left_bracket_stack = new_stack(); // empty stack
+    int next_instr_index = conditional_continue(mem, 0 ,left_bracket_stack);
+    CU_ASSERT_EQUAL(-1, next_instr_index);
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_conditional_continue_restart_loop_has_matching_left_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 1; // non-zero memory value
+    Stack *left_bracket_stack = new_stack();
+    stack_push(left_bracket_stack, 3); // left bracket at instruction 3
+    int next_instr_index = conditional_continue(mem, 17, left_bracket_stack);
+    CU_ASSERT_EQUAL(4, next_instr_index); // next instruction index is after left bracket
+    CU_ASSERT_EQUAL(1, stack_size(left_bracket_stack)); // stack should be unchanged
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_conditional_continue_end_loop_has_matching_left_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 0; // zero memory value--end the loop
+    Stack *left_bracket_stack = new_stack();
+    stack_push(left_bracket_stack, 3); // left bracket at instruction 3
+    int next_instr_index = conditional_continue(mem, 17, left_bracket_stack);
+    CU_ASSERT_EQUAL(18, next_instr_index); // next instruction index is after current
+    CU_ASSERT_EQUAL(0, stack_size(left_bracket_stack)); // left bracket removed from stack
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_conditional_continue_end_loop_no_matching_left_bracket() {
+    SystemMemory *mem = create_test_memory(100, 0);
+    mem->tape[mem->curr_index] = 0; // zero memory value--end the loop
+    Stack *left_bracket_stack = new_stack(); // empty stack
+    int next_instr_index = conditional_continue(mem, 17, left_bracket_stack);
+    CU_ASSERT_EQUAL(-1, next_instr_index); // no matching left bracket found--syntax error
+    free_mem(mem);
+    stack_free(left_bracket_stack);
+}
+
+static void test_stack_size(void) {
+    Stack *stack = new_stack();
+    stack->size = 12;
+    CU_ASSERT_EQUAL(12, stack_size(stack));
+    stack_free(stack);
+}
+
+static void test_stack_peek(void) {
+    Stack *stack = new_stack();
+    Node *tail = malloc(sizeof(Node));
+    stack->tail = tail;
+    tail->val = 14;
+    CU_ASSERT_EQUAL(14, stack_peek(stack));
+    stack_free(stack);
+}
+
+static void test_stack_push_with_empty_stack(void) {
+    Stack *stack = new_stack();
+    stack_push(stack, 99);
+
+    CU_ASSERT_EQUAL(1, stack->size);
+    CU_ASSERT_EQUAL(99, stack->tail->val);
+    // test that pointers of linked list are properly set
+    CU_ASSERT_PTR_NOT_NULL(stack->head);
+    CU_ASSERT_PTR_NOT_NULL(stack->tail);
+    CU_ASSERT_PTR_EQUAL(stack->head, stack->tail);
+    CU_ASSERT_PTR_NULL(stack->head->next);
+    CU_ASSERT_PTR_NULL(stack->head->prev);
+    stack_free(stack);
+}
+
+static void test_stack_push_two_items(void) {
+    Stack *stack = new_stack();
+    stack_push(stack, 99);
+    stack_push(stack, 100);
+
+    CU_ASSERT_EQUAL(2, stack->size);
+    CU_ASSERT_EQUAL(99, stack->head->val);
+    CU_ASSERT_EQUAL(100, stack->tail->val);
+    // test that pointers of linked list are properly set
+    CU_ASSERT_PTR_NULL(stack->head->prev);
+    CU_ASSERT_PTR_NULL(stack->tail->next);
+    CU_ASSERT_PTR_EQUAL(stack->tail, stack->head->next);
+    CU_ASSERT_PTR_EQUAL(stack->head, stack->tail->prev);
+    stack_free(stack);
+}
+
+static void test_stack_push_three_items(void) {
+    Stack *stack = new_stack();
+    stack_push(stack, 99);
+    stack_push(stack, 100);
+    stack_push(stack, 101);
+
+    CU_ASSERT_EQUAL(3, stack->size);
+    CU_ASSERT_EQUAL(99, stack->head->val);
+    CU_ASSERT_EQUAL(100, stack->head->next->val);
+    CU_ASSERT_EQUAL(101, stack->tail->val);
+    // test that pointers of linked list are properly set
+    CU_ASSERT_PTR_NULL(stack->head->prev);
+    CU_ASSERT_PTR_NULL(stack->tail->next);
+    CU_ASSERT_PTR_EQUAL(stack->tail, stack->head->next->next);
+    CU_ASSERT_PTR_EQUAL(stack->head, stack->tail->prev->prev);
+    stack_free(stack);
+}
+
+static void test_stack_pop_one_item(void) {
+    Stack *stack = new_stack();
+    stack_push(stack, 99);
+    int val = stack_pop(stack);
+    
+    CU_ASSERT_EQUAL(99, val);
+    CU_ASSERT_EQUAL(0, stack->size);
+    CU_ASSERT_PTR_NULL(stack->head);
+    CU_ASSERT_PTR_NULL(stack->tail);
+    stack_free(stack);
+}
+
+static void test_stack_pop_two_items(void) {
+    Stack *stack = new_stack();
+    stack_push(stack, 99);
+    stack_push(stack, 100);
+    int val = stack_pop(stack);
+
+    CU_ASSERT_EQUAL(100, val);
+    CU_ASSERT_EQUAL(1, stack->size);
+    CU_ASSERT_EQUAL(99, stack->head->val);
+    CU_ASSERT_PTR_EQUAL(stack->head, stack->tail);
+    CU_ASSERT_PTR_NULL(stack->head->next);
+    stack_free(stack);
+}
+
+static void test_stack_pop_three_items(void) {
+    Stack *stack = new_stack();
+    stack_push(stack, 99);
+    stack_push(stack, 100);
+    stack_push(stack, 101);
+    int val = stack_pop(stack);
+
+    CU_ASSERT_EQUAL(101, val);
+    CU_ASSERT_EQUAL(2, stack->size);
+    CU_ASSERT_EQUAL(99, stack->head->val);
+    CU_ASSERT_EQUAL(100, stack->head->next->val);
+    CU_ASSERT_PTR_EQUAL(stack->tail, stack->head->next);
+    CU_ASSERT_PTR_NULL(stack->tail->next);
+    stack_free(stack);
+}
 
 int main() {
-    CU_pSuite pSuite = NULL;
+    CU_pSuite interpreter_suite;
+    CU_pSuite stack_suite;
 
     /* initialize the CUnit test registry */
     CU_initialize_registry();
@@ -133,7 +366,7 @@ int main() {
     interpreter_suite = CU_add_suite("Interpreter Suite", init_suite, clean_suite);
     stack_suite = CU_add_suite("Stack Suite", init_suite, clean_suite);
 
-    /* add the tests to the suite */
+    /* add tests to the interpreter suite */
     CU_add_test(interpreter_suite, "test_initialize_memory", test_initialize_memory);
     CU_add_test(interpreter_suite, "test_initialize_memory_has_blank_tape", test_initialize_memory_has_blank_tape);
     CU_add_test(interpreter_suite, "test_move_memory_pointer_left", test_move_memory_pointer_left);
@@ -145,9 +378,25 @@ int main() {
     CU_add_test(interpreter_suite, "test_decrement_memory_cell_value", test_decrement_memory_cell_value);
     CU_add_test(interpreter_suite, "test_decrement_memory_cell_value_stays_above_zero", test_decrement_memory_cell_value_stays_above_zero);
     CU_add_test(interpreter_suite, "test_output_current_cell_value", test_output_current_cell_value);
-    //CU_add_test(pSuite, "", );
-
-    CU_add_test(stack_suite, "", );
+    CU_add_test(interpreter_suite, "test_conditional_loop_entry_enter_loop", test_conditional_loop_entry_enter_loop);
+    CU_add_test(interpreter_suite, "test_conditional_loop_entry_skip_loop_no_matching_right_bracket", test_conditional_loop_entry_skip_loop_no_matching_right_bracket);
+    CU_add_test(interpreter_suite, "test_conditional_loop_entry_skip_loop_has_matching_right_bracket", test_conditional_loop_entry_skip_loop_has_matching_right_bracket);
+    CU_add_test(interpreter_suite, "test_conditional_loop_entry_nested_loop_skip_no_matching_right_bracket", test_conditional_loop_entry_nested_loop_skip_no_matching_right_bracket);
+    CU_add_test(interpreter_suite, "test_conditional_loop_entry_nested_loop_skip_has_matching_right_bracket", test_conditional_loop_entry_nested_loop_skip_has_matching_right_bracket);
+    CU_add_test(interpreter_suite, "test_conditional_continue_restart_loop_no_matching_left_bracket", test_conditional_continue_restart_loop_no_matching_left_bracket);
+    CU_add_test(interpreter_suite, "test_conditional_continue_restart_loop_has_matching_left_bracket", test_conditional_continue_restart_loop_has_matching_left_bracket);
+    CU_add_test(interpreter_suite, "test_conditional_continue_end_loop_has_matching_left_bracket", test_conditional_continue_end_loop_has_matching_left_bracket);
+    CU_add_test(interpreter_suite, "test_conditional_continue_end_loop_no_matching_left_bracket", test_conditional_continue_end_loop_no_matching_left_bracket);
+    
+    /* add tests to the stack suite */
+    CU_add_test(stack_suite, "test_stack_size", test_stack_size);
+    CU_add_test(stack_suite, "test_stack_peek", test_stack_peek);
+    CU_add_test(stack_suite, "test_stack_push_with_empty_stack", test_stack_push_with_empty_stack);
+    CU_add_test(stack_suite, "test_stack_push_two_items", test_stack_push_two_items);
+    CU_add_test(stack_suite, "test_stack_push_three_items", test_stack_push_three_items);
+    CU_add_test(stack_suite, "test_stack_pop_one_item", test_stack_pop_one_item);
+    CU_add_test(stack_suite, "test_stack_pop_two_items", test_stack_pop_two_items);
+    CU_add_test(stack_suite, "test_stack_pop_three_items", test_stack_pop_three_items);
 
     /* Run all tests using the CUnit Basic interface */
     CU_basic_set_mode(CU_BRM_VERBOSE);

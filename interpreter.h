@@ -1,3 +1,5 @@
+#include "stack.h"
+
 #ifndef INTERPRETER_HEADER
 #define INTERPRETER_HEADER
 
@@ -23,12 +25,15 @@ int output_current_cell_value(SystemMemory *mem);
 
 int store_input_char_in_current_cell(SystemMemory *mem);
 
-void conditional_break(SystemMemory *mem);
+int conditional_loop_entry(SystemMemory *mem, char *instructions,
+                           int instruction_index, Stack *stack);
 
-void conditional_continue(SystemMemory *mem);
+int conditional_continue(SystemMemory *mem, int instruction_index,
+                         Stack *stack);
 
 void execute_code(char *instructions, SystemMemory *mem);
 
-void execute_instruction(char c, SystemMemory *mem);
+int execute_instruction(SystemMemory *mem, char *instructions,
+                         int instruction_index, Stack *stack);
 
 #endif
