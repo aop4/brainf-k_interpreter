@@ -100,14 +100,9 @@ int store_input_char_in_current_cell(SystemMemory *mem) {
 }
 
 /*
- * Executed when a left bracket ("[") is encountered. If the tape-cell under the
- * pointer is 0, attempts to find the index of the matching right bracket. If it
- * can be found, the instruction after the right bracket is set as the current
- * instruction. This is equivalent to skipping a loop.
- * If the tape-cell under the pointer is not 0, the loop will be entered and
- * the left bracket's index will be added to the stack.
- * Returns the index of the current instruction after running this algorithm. If
- * there is no matching right bracket but a loop-skip is called for, returns -1.
+ * Scans instructions for a right bracket to match the left bracket at position
+ * instruction_index in the instructions string. Returns the index of the matching
+ * right bracket. Returns -1 if no matching right bracket is found.
  *
  * Note: This could be optimized by taking a pass through the instructions
  * before executing anything. The compiler could iterate through the code
@@ -117,28 +112,43 @@ int store_input_char_in_current_cell(SystemMemory *mem) {
  * more than once and the inner loop is not executed, this pre-work is more efficient.
  * The optimization would also catch unmatched brackets before execution.
  */
-int conditional_loop_entry(SystemMemory *mem, char *instructions,
-                           int instruction_index, Stack *stack) {
-    // skip over the loop
-    if (mem->tape[mem->curr_index] == 0) {
-        int i;
-        int nested_loop_offset = 0;
-        int instr_length = strlen(instructions);
-        // search ahead of the left bracket for a matching right bracket
-        for (i = instruction_index + 1; i < instr_length; i++) {
-            // if we encounter another left bracket, ignore its corresponding right bracket
-            if (instructions[i] == '[') {
-                nested_loop_offset++;
-            }
-            if (instructions[i] == ']') {
-                if (nested_loop_offset-- == 0) {
-                    // set the current instruction to the instruction after the loop
-                    return i + 1;
-                }
+static int find_matching_right_bracket(char *instructions, int instruction_index) {
+    int i;
+    int nested_loop_offset = 0;
+    int instr_length = strlen(instructions);
+    // search ahead of the left bracket for a matching right bracket
+    for (i = instruction_index + 1; i < instr_length; i++) {
+        // if we encounter another left bracket, ignore its corresponding right bracket
+        if (instructions[i] == '[') {
+            nested_loop_offset++;
+        }
+        if (instructions[i] == ']') {
+            // if end of source-code loop that starts at instruction_index
+            if (nested_loop_offset-- == 0) {
+                // set the current instruction to the instruction after the loop
+                return i + 1;
             }
         }
-        log_system_error("conditional_loop_entry", "Error: no matching right-bracket found for left-bracket");
-        return -1;
+    }
+    log_system_error("conditional_loop_entry", "Error: no matching right-bracket found for left-bracket");
+    return -1;
+}
+
+/*
+ * Executed when a left bracket ("[") is encountered. If the tape-cell under the
+ * pointer is 0, attempts to find the index of the matching right bracket. If it
+ * can be found, the instruction after the right bracket is set as the current
+ * instruction. This is equivalent to skipping a loop.
+ * If the tape-cell under the pointer is not 0, the loop will be entered and
+ * the left bracket's index will be added to the stack.
+ * Returns the index of the current instruction after running this algorithm. If
+ * there is no matching right bracket but a loop-skip is called for, returns -1.
+ */
+int conditional_loop_entry(SystemMemory *mem, char *instructions,
+                           int instruction_index, Stack *stack) {
+    if (mem->tape[mem->curr_index] == 0) {
+        // skip over the loop
+        return find_matching_right_bracket(instructions, instruction_index);
     }
     // add left bracket index to stack--entering loop
     stack_push(stack, instruction_index);
